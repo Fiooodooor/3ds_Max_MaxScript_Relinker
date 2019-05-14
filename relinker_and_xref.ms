@@ -139,18 +139,18 @@ fn writeUpdatedXRefs myNode = (
 -- ******* 		    *** (getFilenamePath) (getFilenameFile) (getFilenameType) 
 -- ****************************************************************************
 
-theSourceFile = @"C:\Users\milos\Desktop\xRefScript\mainScene.max"
+theSourceFile = @"C:\Users\someUser\Desktop\scenes\mainScene.max"
 	
 myMainNode = theNode theSourceFile 0			-- create main (the root) node item and set file path to theSourceFile
 createDependencyTree myMainNode				-- create full dependency list on TreeBased stgruct 
 
--- CHANGE THE FILE PATHS AND CONSTRAINS HERE
+-- SCRIPT WILL DISPLAY ALL DEPENDENCIES BUT WON'T UPDATE THEM
+-- YOU WILL NEED TO CHANGE THE FILE PATHS AND CONSTRAINS HERE
 -- TO-DO !!
 
-writeUpdatedTree myMainNode 	-- save meta data back 
+writeUpdatedTree myMainNode 				-- save meta data back to the proper files - will override existing files!
 
 -- ADD HDD FILES COPY FUNCTION with eventual TheNode.filePath update
--- INFO: Is it beeing done by the RenderBeamer?
 
 )
 
