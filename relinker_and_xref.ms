@@ -1,34 +1,12 @@
 (
 -- Set debuging to 0 (off) state and define the node struct beeing used in this relinker
 -- ****************************************************************************		
-XRefAssetResolverDebug = 0	
+XRefAssetResolverDebug = 1
+ct = 1	
 Struct theNode ( filePath, nodeLevel = 1, nodeDetails = #(), assetsList = #(), nodeChildren = #() )
 	
 -- ****************************************************************************
 -- *******   THE HDD READ FUNCTIONS	
--- ****************************************************************************	
--- Initialize the TreeBased data model and load 'root node' asset info and xrefs
--- ****************************************************************************	
-fn createDependencyTree theRootNode = 
-(  	
-	if doesfileexist theRootNode.filePath then (
-		theRecursiveLoader theRootNode
-	)
-	else (
-		format "CRITICAL ERROR: The main scene file does not exists or could not been opened for read/wrtite.\n FILEPATH:: %\n" theSourceFile
-	)
-)
--- ****************************************************************************
--- READ and DISPLAY IF NEEDED all avalible info on one node, and step through all child items
--- ****************************************************************************	
-fn theRecursiveLoader myNode =
-	(
-		listAssetsRecurency myNode		
-		for nodeItem in myNode.nodeChildren do
-		(
-			theRecursiveLoader nodeItem
-		)
-	)
 -- ****************************************************************************
 -- READ and DISPLAY IF NEEDED all avalible info on one nodes assets
 -- ****************************************************************************	
@@ -79,15 +57,52 @@ fn listAssetsRecurency myNode =
 		)
 	)
 -- ****************************************************************************
+-- READ and DISPLAY IF NEEDED all avalible info on one node, and step through all child items
+-- ****************************************************************************	
+fn theRecursiveLoader myNode =
+	(
+		listAssetsRecurency myNode		
+		for nodeItem in myNode.nodeChildren do
+		(
+			theRecursiveLoader nodeItem
+		)
+	)		
+-- ****************************************************************************	
+-- Initialize the TreeBased data model and load 'root node' asset info and xrefs
+-- ****************************************************************************	
+fn createDependencyTree theRootNode = 
+(  	
+	if doesfileexist theRootNode.filePath then 
+	(
+		theRecursiveLoader theRootNode
+	)
+	else (
+		format "CRITICAL ERROR: The main scene file does not exists or could not been opened for read/wrtite.\n FILEPATH:: %\n" theRootNode.filePath
+	)
+)
+-- ****************************************************************************
 -- *******   THE HDD WRITE METEADATA FUNCTIONS	
 -- ****************************************************************************
--- WRITE WHOLE UPDATED TREE TO HDD
--- ****************************************************************************	
-fn writeUpdatedTree myRootNode = (
-	writeUpdatedNode myRootNode
-	
-	for pt in myRootNode.nodeChildren do (
-		writeUpdatedTree pt;
+-- Write the changes to HDD drive -- the assets only;]
+-- ****************************************************************************
+fn writeUpdatedAssets myNode = (
+	if doesfileexist myNode.filePath do
+	(
+		setMAXFileAssetMetadata myNode.filePath myNode.assetsList
+	)
+)
+-- ****************************************************************************
+-- Write the changes to HDD drive -- the XrefFiles info only
+-- ****************************************************************************
+fn writeUpdatedXRefs myNode = (
+	if doesfileexist myNode.filePath then
+	(
+		temp=#();
+		for pt in myNode.nodeChildren do
+		(
+			appendIfUnique temp pt.nodeDetails
+		)	
+		setMAXFileAssetMetadata myNode.filePath temp							
 	)
 )
 -- ****************************************************************************
@@ -98,30 +113,82 @@ fn writeUpdatedNode myNode = (
 	writeUpdatedXRefs myNode	
 )
 -- ****************************************************************************
--- Write the changes to HDD drive -- the assets only;]
--- ****************************************************************************
-fn writeUpdatedAssets myNode = (
-	if doesfileexist myNode.filePath do
-		setMAXFileAssetMetadata myNode.filePath myNode.assetsList 
-)
--- ****************************************************************************
--- Write the changes to HDD drive -- the XrefFiles info only
--- ****************************************************************************
-fn writeUpdatedXRefs myNode = (
-	if doesfileexist myNode.filePath then
-	(
-		if myNode.nodeChildren.size > 0 then
-		(
-			temp=#();
-			for pt in myNode.nodeChildren do
-			(
-				appendIfUnique temp pt.nodeDetails
-			)	
-			setMAXFileAssetMetadata myNode.filePath temp							
-		)
+-- WRITE WHOLE UPDATED TREE TO HDD
+-- ****************************************************************************	
+fn writeUpdatedTree myRootNode = (
+	writeUpdatedNode myRootNode
+	
+	for pt in myRootNode.nodeChildren do (
+		writeUpdatedTree pt;
 	)
 )
 
+-- ****************************************************************************
+-- *******   THE COPY AND UPDATE FUNCTIONS
+-- ****************************************************************************
+-- GENERATE UNIQUE XREF FILES LIST
+-- ****************************************************************************	
+fn generateXrefsList myRootNode theXrefsList = 
+(
+	appendIfUnique theXrefsList (myRootNode.filepath as string)
+	
+	for pt in myRootNode.nodeChildren do (
+		generateXrefsList pt theXrefsList;
+	)	
+)
+-- ****************************************************************************
+-- GENERATE UNIQUE ASSETS FILES LIST
+-- ****************************************************************************	
+fn generateAssetsList myRootNode theAssetsList = 
+(
+	for pt in myRootNode.assetsList do (
+		appendIfUnique theAssetsList (pt.resolvedFilename as string)
+	)
+	
+	for pt in myRootNode.nodeChildren do (
+		generateAssetsList pt theAssetsList;
+	)	
+)
+
+-- ****************************************************************************
+-- COPY AND RELINK FUNCTION
+-- ****************************************************************************	
+fn copyTheNode myNode xrefDir = (
+	for theItem in myNode.assetsList do
+		(
+			if doesfileexist theItem.filename then
+			(
+				ct= ct+1
+				tmp =  xrefDir + "\\" + (ct as string) + (filenameFromPath theItem.filename)
+				copyFile theItem.filename tmp
+				theItem.filename = (filenameFromPath theItem.filename)
+				theItem.resolvedFilename = tmp
+			)		
+		)
+	if doesfileexist myNode.filepath then
+	(
+		ct= ct+1
+		tmp =  xrefDir + "\\" + (ct as string) + (filenameFromPath myNode.filepath)
+		copyFile myNode.filepath tmp
+		myNode.filepath = tmp
+		
+		if myNode.nodeDetails != undefined then
+		(
+			myNode.nodeDetails.filename = (filenameFromPath myNode.filepath)
+			myNode.nodeDetails.resolvedFilename = tmp
+		)
+	)
+)
+-- ****************************************************************************
+-- WRITE WHOLE UPDATED TREE TO HDD
+-- ****************************************************************************	
+fn copyTheTree myRootNode xrefDir = (
+	copyTheNode myRootNode xrefDir
+	
+	for pt in myRootNode.nodeChildren do (
+		copyTheTree pt xrefDir;
+	)
+)
 -- ****************************************************************************
 -- *******   MAIN LOGIC STARTS HERE	
 -- ****************************************************************************
@@ -139,25 +206,28 @@ fn writeUpdatedXRefs myNode = (
 -- ******* 		    *** (getFilenamePath) (getFilenameFile) (getFilenameType) 
 -- ****************************************************************************
 
-theSourceFile = @"C:\Users\someUser\Desktop\scenes\mainScene.max"
-	
+theSourceFile = @"C:\Users\milos\Desktop\xRefScript\mainScene.max"		-- the source file 
+theNewXRefsDir = "d:\\_____"																	-- new directory with dependencies
+
 myMainNode = theNode theSourceFile 0			-- create main (the root) node item and set file path to theSourceFile
 createDependencyTree myMainNode				-- create full dependency list on TreeBased stgruct 
 
--- SCRIPT WILL DISPLAY ALL DEPENDENCIES BUT WON'T UPDATE THEM
--- YOU WILL NEED TO CHANGE THE FILE PATHS AND CONSTRAINS HERE
--- TO-DO !!
+makeDir theNewXRefsDir all:true				-- create dir if it doesn't exist
+copyTheTree myMainNode theNewXRefsDir			-- tree copy the xrefs and asse4ts
+writeUpdatedTree myMainNode				-- tree write updated paths to copied assets
 
-writeUpdatedTree myMainNode 				-- save meta data back to the proper files - will override existing files!
+-- For checking only - lists all dependencies in new location
+myMainNodeCopy = theNode myMainNode.filePath 0
+createDependencyTree myMainNodeCopy
 
--- ADD HDD FILES COPY FUNCTION with eventual TheNode.filePath update
+-- TO-DO:  unique copy files. Now there can be many same-files copied
+
+--theXrefsList =#()
+--generateAssetsList myMainNode theXrefsList 
+--generateXrefsList myMainNode theXrefsList 
+--for pt in theXrefsList do
+--(
+	--format "path: %\n" pt
+--)
 
 )
-
-
-
-
-
-
-
-
