@@ -1,2 +1,2 @@
-# 3dsMax_MaxScript
-Scripting for some of the max functionalities
+# Assets relinker for 3ds max
+Recurency based asset relinker for 3ds Max. Not yes finished :)
